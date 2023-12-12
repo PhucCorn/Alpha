@@ -1,6 +1,7 @@
 # importing all required libraries
 import telebot
 from telethon.sync import TelegramClient
+from telethon.tl import types
 from telethon.tl.types import InputPeerUser, InputPeerChannel
 from telethon import TelegramClient, sync, events
 import telegram
@@ -55,13 +56,12 @@ def is_outside_trading_hours():
     trading_hours_1_end = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 11, 30)
 
     trading_hours_2_start = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 13, 0)
-    trading_hours_2_end = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 30)
+    trading_hours_2_end = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 15, 47)
 
-    trading_hours_3 = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 45)
+    trading_hours_3 = datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 46)
     if (
         (datetime.now() < trading_hours_1_start or datetime.now() > trading_hours_1_end)
         and (datetime.now() < trading_hours_2_start or datetime.now() > trading_hours_2_end)
-        and datetime.now() != trading_hours_3
     ):
     # if (
     #     (datetime.now()-timedelta(minutes=180) < trading_hours_1_start or datetime.now()-timedelta(minutes=180) > trading_hours_1_end)
@@ -172,50 +172,80 @@ try:
         df['Date'] = df.index
         df = df.reset_index(drop=True)
         current_time = df['Date'].iloc[-1] if current_time == 0 else current_time
-        time.sleep(20)
         if is_outside_trading_hours():
             continue
         elif current_time == df['Date'].iloc[-1]:
-            # if (current_time + timedelta(minutes=2)) == (now-timedelta(minutes=180)) and missing_time:
-            if current_time + timedelta(minutes=2) == now and missing_time:
-                print(current_time)
-                print(str(current_time + timedelta(minutes=1)) + ' $ ' + str(now))
-                missing_time = False
-                message = "Missing value"
-                client.send_message('@hephaestus_trading', message, parse_mode='html')
-            continue
+            time.sleep(20)
+            df = get_vn30()
+            now = datetime.now().replace(second=0, microsecond=0)
+            df['Date'] = df.index
+            df = df.reset_index(drop=True)
+            if current_time == df['Date'].iloc[-1]:
+                # if (current_time + timedelta(minutes=2)) == (now-timedelta(minutes=180)) and missing_time:
+                if now - current_time >= timedelta(minutes=2) and missing_time:
+                    missing_time = False
+                    message = "Missing value"
+                    client.send_message('@hephaestus_trading', message, parse_mode='html')
+                continue
+            else:
+                continue
         current_time = df['Date'].iloc[-1]
         print(current_time)
         print(str(current_time + timedelta(minutes=1)) + ' $ ' + str(now))
         # if (current_time + timedelta(minutes=1)) == (now-timedelta(minutes=180)):
-        if current_time + timedelta(minutes=1) == now:
-            missing_time = True 
-            data = data_supplier()
-            data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
-            data = data[data['datetime'] <= df['Date'].iloc[-1]]
-            data = alpha_run(4,0.21,3, data)
-            message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
-            client.send_message('@hephaestus_trading', message, parse_mode='html')
-            if datetime.now() > datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 45) and last_day_report:
-                last_day_report = False
-                data['gain'] = data['gain'].fillna(method='ffill')
-                gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
-                six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
-                message = "4-0.21-3_BASE   "+str(gain_data.tail(1).iloc[0])
-                client.send_message('@hephaestus_trading', message, parse_mode='html')
-                img = data['gain'].iloc[-45900:].cumsum().plot()
-                plt.savefig('plot.png')
-                image_url = upload_imgur('plot.png')
-                send_zalo_message(message, image_url)
-                if os.path.exists('plot.png'):
-                    # Delete the file
-                    os.remove('plot.png')
+        # if current_time + timedelta(minutes=1) == now:
+        missing_time = True
+        data = data_supplier()
+        data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
+        data = data[data['datetime'] <= df['Date'].iloc[-1]]
+        data = alpha_run(4,0.21,3, data)
+        message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
+        client.send_message('@hephaestus_trading', message, parse_mode='html')
+        if datetime.now() >= datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 45) and last_day_report:
+            last_day_report = False
+            data['gain'] = data['gain'].fillna(method='ffill')
+            gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
+            six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
+            message = "4-0.21-3_BASE   "+str(gain_data.tail(1).iloc[0])
+            img = data['gain'].iloc[-45900:].cumsum().plot()
+            plt.savefig('plot.png')
+            client.send_file('@hephaestus_trading', file='plot.png', caption=message)
+            # image_url = upload_imgur('plot.png')
+            # send_zalo_message(message, image_url)
+            if os.path.exists('plot.png'):
+                os.remove('plot.png')
 except Exception as e:
 	
 	# there may be many error coming in while like peer
 	# error, wrong access_hash, flood_error, etc
 	print(e);
 
+
+df = get_vn30()
+now = datetime.now().replace(second=0, microsecond=0)
+df['Date'] = df.index
+df = df.reset_index(drop=True)
+current_time = df['Date'].iloc[-1]
+data = data_supplier()
+data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
+data = data[data['datetime'] <= df['Date'].iloc[-1]]
+data = alpha_run(4,0.21,3, data)
+message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
+client.send_message('@hephaestus_trading', message, parse_mode='html')
+last_day_report = False
+data['gain'] = data['gain'].fillna(method='ffill')
+gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
+six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
+message = "4-0.21-3_BASE   "+str(gain_data.tail(1).iloc[0])
+# client.send_message('@hephaestus_trading', message, parse_mode='html')
+img = data['gain'].iloc[-45900:].cumsum().plot()
+plt.savefig('plot.png')
+client.send_file('@hephaestus_trading', file='plot.png', caption=message)
+# image_url = upload_imgur('plot.png')
+# send_zalo_message(message, image_url)
+if os.path.exists('plot.png'):
+    # Delete the file
+    os.remove('plot.png')
 
 # disconnecting the telegram session 
 client.disconnect() 
