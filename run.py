@@ -13,6 +13,7 @@ from collect_data import *
 import time
 from imgurpython import ImgurClient
 import os
+import altair as alt
 
 def get_vn30():
     def vn30():
@@ -134,31 +135,36 @@ def upload_imgur(path):
     image_url = uploaded_image['link']
     return image_url
 
+def draw_5days_pnl(data):
+    img = data['gain'].iloc[-1275:].cumsum().plot()
+    plt.savefig('plot.png')
+    
+def six_months_ratio(data):
+    return data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
+
+def today_nav(data):
+    last_day_data = data[data['datetime'].dt.date == data['datetime'].dt.date.max()]
+    nav = round((last_day_data['Close'].iloc[-1]-last_day_data['Close'].iloc[0])*100 / last_day_data['Close'].iloc[0], 4)
+    return nav
+
+def day_report(data):
+    six_month_ratio = six_months_ratio(data)
+    nav = today_nav(data)
+    message = "4-0.21-3_BASE   "+"   TODAY_NAV="+str(nav)+"%    6_MONTHS_SHARPE_RATIO="+str(round(six_month_ratio,4))
+    return message
 
 
-# get your api_id, api_hash, token
-# from telegram as described above
+
 api_id = '23426972'
 api_hash = 'e161487f61d6c6931b58c69892050954'
 token = '6839571824:AAHfZlOA0EhyAvq8-06lQyHT7FQg3kR6UGE'
-
-# your phone number
 phone = '+84905982163'
-
-# creating a telegram session and assigning
-# it to a variable client
 client = TelegramClient('session', api_id, api_hash)
-
-# connecting and building the session
 client.connect()
 
 if not client.is_user_authorized():
-
 	client.send_code_request(phone)
-	
-	# signing in the client
 	client.sign_in(phone, input('Enter the code: '))
-
 
 try:
     receiver = InputPeerChannel(-1002060032542, 0)
@@ -192,11 +198,8 @@ try:
         current_time = df['Date'].iloc[-1]
         print(current_time)
         print(str(current_time + timedelta(minutes=1)) + ' $ ' + str(now))
-        # if (current_time + timedelta(minutes=1)) == (now-timedelta(minutes=180)):
-        # if current_time + timedelta(minutes=1) == now:
         missing_time = True
         data = data_supplier()
-        data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
         data = data[data['datetime'] <= df['Date'].iloc[-1]]
         data = alpha_run(4,0.21,3, data)
         message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
@@ -204,10 +207,9 @@ try:
         if datetime.now() >= datetime(datetime.now().year, datetime.now().month, datetime.now().day, 14, 45) and last_day_report:
             last_day_report = False
             data['gain'] = data['gain'].fillna(method='ffill')
-            gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
-            six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
-            message = "4-0.21-3_BASE   "+str(gain_data.tail(1).iloc[0])
-            img = data['gain'].iloc[-45900:].cumsum().plot()
+            # gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
+            message = day_report(data)
+            img = data['gain'].iloc[-1275:].cumsum().plot()
             plt.savefig('plot.png')
             client.send_file('@hephaestus_trading', file='plot.png', caption=message)
             # image_url = upload_imgur('plot.png')
@@ -215,37 +217,34 @@ try:
             if os.path.exists('plot.png'):
                 os.remove('plot.png')
 except Exception as e:
-	
-	# there may be many error coming in while like peer
-	# error, wrong access_hash, flood_error, etc
 	print(e);
 
 
-df = get_vn30()
-now = datetime.now().replace(second=0, microsecond=0)
-df['Date'] = df.index
-df = df.reset_index(drop=True)
-current_time = df['Date'].iloc[-1]
-data = data_supplier()
-data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
-data = data[data['datetime'] <= df['Date'].iloc[-1]]
-data = alpha_run(4,0.21,3, data)
-message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
-client.send_message('@hephaestus_trading', message, parse_mode='html')
-last_day_report = False
-data['gain'] = data['gain'].fillna(method='ffill')
-gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
-six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
-message = "4-0.21-3_BASE   "+str(gain_data.tail(1).iloc[0])
+# df = get_vn30()
+# now = datetime.now().replace(second=0, microsecond=0)
+# df['Date'] = df.index
+# df = df.reset_index(drop=True)
+# current_time = df['Date'].iloc[-1]
+# data = data_supplier()
+# data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
+# data = data[data['datetime'] <= df['Date'].iloc[-1]]
+# data = alpha_run(4,0.21,3, data)
+# message = str('4-0.21-3_BASE   '+str(data['bool'].iloc[-1])+'   '+str(data['Close'].iloc[-1])+'   '+str(data['datetime'].iloc[-1]))
 # client.send_message('@hephaestus_trading', message, parse_mode='html')
-img = data['gain'].iloc[-45900:].cumsum().plot()
-plt.savefig('plot.png')
-client.send_file('@hephaestus_trading', file='plot.png', caption=message)
-# image_url = upload_imgur('plot.png')
-# send_zalo_message(message, image_url)
-if os.path.exists('plot.png'):
-    # Delete the file
-    os.remove('plot.png')
+# last_day_report = False
+# data['gain'] = data['gain'].fillna(method='ffill')
+# gain_data = data.groupby(pd.to_datetime(data['Date']).dt.date)['gain'].cumsum()
+# six_month_ratio = data['gain'].iloc[-45900:].mean()/data['gain'].iloc[-45900:].std()*np.sqrt(252)
+# last_day_data = data[data['datetime'].dt.date == data['datetime'].dt.date.max()]
+# nav = round((last_day_data['Close'].iloc[-1]-last_day_data['Close'].iloc[0])*100 / last_day_data['Close'].iloc[0], 4)
+# message = day_report(data)
+# img = data['gain'].iloc[-1275:].cumsum().plot()
+# plt.savefig('plot.png')
+# client.send_file('@hephaestus_trading', file='plot.png', caption=message)
+# # image_url = upload_imgur('plot.png')
+# # send_zalo_message(message, image_url)
+# if os.path.exists('plot.png'):
+#     # Delete the file
+#     os.remove('plot.png')
 
-# disconnecting the telegram session 
-client.disconnect() 
+client.disconnect()

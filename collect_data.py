@@ -115,4 +115,5 @@ def data_supplier():
     close_feature = close_feature[close_feature.index > '2018-01-05'].ffill(axis=1)
     data = close_feature.stack().reset_index()
     data.columns = ['Date','time','Close']
+    data['datetime'] = pd.to_datetime(data['Date'] + ' ' + data['time'])
     return data
