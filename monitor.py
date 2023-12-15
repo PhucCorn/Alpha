@@ -13,7 +13,7 @@ from collect_data import *
 import time
 from imgurpython import ImgurClient
 import os
-import altair as alt
+import pickle
 
 def get_vn30():
     def vn30():
@@ -30,26 +30,6 @@ def get_vn30():
     vn30fm = pd.DataFrame(vn30()).iloc[:,:6]
     vn30fm['t'] = vn30fm['t'].astype(int).apply(lambda x: datetime.utcfromtimestamp(x) + timedelta(hours = 7))
     vn30fm.columns = ['Date','Open','High','Low','Close','Volume']
-    return vn30fm.set_index('Date')
-
-def get_vn30_test(time):
-    def vn30():
-            return requests.get("https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=1701315223&resolution=1&symbol=VN30&to=9999999999").json()
-    vn30fm = pd.DataFrame(vn30()).iloc[:,:6]
-    vn30fm['t'] = vn30fm['t'].astype(int).apply(lambda x: datetime.utcfromtimestamp(x) + timedelta(hours = 7))
-    vn30fm.columns = ['Date','Open','High','Low','Close','Volume']
-    ohlc_dict = {
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum',}
-    vn30fm = pd.DataFrame(vn30()).iloc[:,:6]
-    vn30fm['t'] = vn30fm['t'].astype(int).apply(lambda x: datetime.utcfromtimestamp(x) + timedelta(hours = 7))
-    vn30fm.columns = ['Date','Open','High','Low','Close','Volume']
-    vn30fm = vn30fm[vn30fm['Date'] <= time]
-    if vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 30, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 35, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 40, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 45, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 50, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 13, 55, 0) or vn30fm['Date'].iloc[-1] == datetime(2023, 11, 29, 15, 0, 0):
-        vn30fm = vn30fm.drop(vn30fm.index[-1])
     return vn30fm.set_index('Date')
 
 def is_outside_trading_hours():
@@ -153,6 +133,13 @@ def day_report(data):
     message = "4-0.21-3_BASE   "+"   TODAY_NAV="+str(nav)+"%    6_MONTHS_SHARPE_RATIO="+str(round(six_month_ratio,4))
     return message
 
+def model_predict(data):
+    with open('weight.pkl', 'rb') as file:
+        loaded_model = pickle.load(file)
+        data['predict'] = list(loaded_model.predict(data))
+        data['signal'] = (data['predict']>0).astype(int).replace(0,-1)
+        data['gain'] = (data['14:45'] - data['13:45'])*data['signal'] - 0.075
+        return data
 
 
 api_id = '23426972'
